@@ -28,6 +28,7 @@ struct udev_device {
 	char const *action;
 	char const *subsystem;
 	struct udev_list_entry *properties_list;
+	struct udev_device *parent;
 };
 struct udev {
 	int refcount;
@@ -307,15 +308,57 @@ void udev_device_unref(struct udev_device *udev_device) {
 
 	--udev_device->refcount;
 	if (udev_device->refcount == 0) {
+		if (udev_device->parent) {
+			free(udev_device->parent);
+			udev_device->parent = NULL;
+		}
 		free_dev_list(&udev_device->properties_list);
 		free(udev_device);
 	}
 }
 
 struct udev_device *udev_device_get_parent(struct udev_device *udev_device) {
-	(void)udev_device;
 	LOG("udev_device_get_parent %p %d\n", (void *)udev_device,
 	    udev_device->refcount);
+
+	if (udev_device->parent) {
+		return udev_device->parent;
+	}
+
+	udev_device->parent = calloc(1, sizeof(struct udev_device));
+	if (!udev_device->parent) {
+		return NULL;
+	}
+
+	int fd = open(udev_device->syspath, O_RDONLY | O_NONBLOCK);
+	if (fd == -1) {
+		goto free_parent;
+	}
+
+	struct libevdev *evdev = NULL;
+	if (libevdev_new_from_fd(fd, &evdev) != 0) {
+		LOG("udev_device_get_parent: could not create evdev\n");
+		goto free_fd;
+	}
+
+	struct udev_list_entry *le =
+	    create_list_entry_name_value("NAME", libevdev_get_name(evdev));
+	if (!le) {
+		goto free_evdev;
+	}
+
+	udev_device->parent->properties_list = le;
+	libevdev_free(evdev);
+	close(fd);
+	return udev_device->parent;
+
+free_evdev:
+	libevdev_free(evdev);
+free_fd:
+	close(fd);
+free_parent:
+	free(udev_device->parent);
+	udev_device->parent = NULL;
 	return NULL;
 }
 
