@@ -3,6 +3,7 @@ libdir=${PKG_CONFIG_LIBDIR}
 includedir=${PKG_CONFIG_INCLUDEDIR}
 
 Name: ${PKG_CONFIG_NAME}
+Version: 143
 Requires: ${PKG_CONFIG_REQUIRES}
 Libs: ${PKG_CONFIG_LIBS}
 Cflags: ${PKG_CONFIG_CFLAGS}

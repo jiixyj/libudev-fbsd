@@ -11,38 +11,20 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-struct udev_device {
-  struct udev *udev;
-  int refcount;
-  char syspath[32];
-  char const *sysname;
-  char const *action;
-};
-struct udev {
-  int refcount;
-};
-struct udev_list_entry {
-  char path[32];
-  struct udev_list_entry *next;
-};
-struct udev_monitor {
-  struct udev *udev;
-  int refcount;
-  int scan_for_input;
-  int pipe_fds[2];
-  pthread_t devd_thread;
-  int devd_socket;
-};
-struct udev_enumerate {
-  int refcount;
-  int scan_for_input;
-  struct udev_list_entry *dev_list;
-};
+
+struct udev_device;
+struct udev;
+struct udev_list_entry;
+struct udev_monitor;
+struct udev_enumerate;
+
 
 #define udev_list_entry_foreach(list_entry, first_entry)                      \
-  for (list_entry = first_entry; list_entry; list_entry = list_entry->next)
+  for (list_entry = first_entry; list_entry; list_entry = udev_list_entry_get_next(list_entry))
+
 
 char const *udev_device_get_devnode(struct udev_device *udev_device);
+dev_t udev_device_get_devnum(struct udev_device *udev_device);
 char const *udev_device_get_property_value(struct udev_device *dummy __unused, char const *property);
 struct udev *udev_device_get_udev(struct udev_device *dummy __unused);
 struct udev_device *udev_device_new_from_syspath(struct udev *udev,
@@ -56,6 +38,11 @@ void udev_unref(struct udev *udev);
 
 const char *udev_device_get_syspath(struct udev_device *udev_device);
 const char *udev_device_get_sysname(struct udev_device *udev_device);
+const char *udev_device_get_subsystem(struct udev_device *udev_device);
+const char *udev_device_get_sysattr_value(
+    struct udev_device *udev_device, const char *sysattr);
+struct udev_list_entry *udev_device_get_properties_list_entry(
+    struct udev_device *udev_device);
 struct udev_device *udev_device_ref(struct udev_device *udev_device);
 void udev_device_unref(struct udev_device *udev_device);
 struct udev_device *udev_device_get_parent(struct udev_device *udev_device);
@@ -68,12 +55,10 @@ int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate);
 struct udev_list_entry *udev_enumerate_get_list_entry(
     struct udev_enumerate *udev_enumerate);
 
-#define udev_list_entry_foreach(list_entry, first_entry)                      \
-  for (list_entry = first_entry; list_entry; list_entry = list_entry->next)
-
 const char *udev_list_entry_get_name(
     struct udev_list_entry *list_entry);
-void free_dev_list(struct udev_list_entry **list);
+struct udev_list_entry *udev_list_entry_get_next(
+    struct udev_list_entry *list_entry);
 void udev_enumerate_unref(struct udev_enumerate *udev_enumerate);
 struct udev_monitor *udev_monitor_new_from_netlink(struct udev *udev,
                                                           const char *name);

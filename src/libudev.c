@@ -1,5 +1,6 @@
 #include "libudev.h"
 
+#include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 
@@ -11,6 +12,71 @@
 #include <pthread.h>
 
 #include <libevdev/libevdev.h>
+
+
+struct udev_device {
+  struct udev *udev;
+  int refcount;
+  char syspath[32];
+  dev_t devnum;
+  char const *sysname;
+  char const *action;
+  char const *subsystem;
+  struct udev_list_entry *properties_list;
+};
+struct udev {
+  int refcount;
+};
+struct udev_list_entry {
+  char name[32];
+  int has_value;
+  char value[32];
+  struct udev_list_entry *next;
+};
+struct udev_monitor {
+  struct udev *udev;
+  int refcount;
+  int scan_for_input;
+  int pipe_fds[2];
+  pthread_t devd_thread;
+  int devd_socket;
+};
+struct udev_enumerate {
+  int refcount;
+  int scan_for_input;
+  struct udev_list_entry *dev_list;
+};
+
+
+
+static struct udev_list_entry *create_list_entry_name_value(
+      char const *name, char const *value) {
+  struct udev_list_entry *le = calloc(1, sizeof(struct udev_list_entry));
+  if (!le)
+    return NULL;
+  snprintf(le->name, sizeof(le->name), "%s", name);
+  if (value) {
+    le->has_value = 1;
+    snprintf(le->value, sizeof(le->value), "%s", value);
+  }
+  return le;
+}
+
+static struct udev_list_entry *create_list_entry_name(char const *name) {
+  return create_list_entry_name_value(name, NULL);
+}
+
+static void free_dev_list(struct udev_list_entry **list) {
+  if (!*list)
+    return;
+
+  if ((*list)->next)
+    free_dev_list(&(*list)->next);
+
+  free(*list);
+  *list = NULL;
+}
+
 
 
 struct udev_device *udev_device_new_from_devnum(struct udev *udev, char type,
@@ -39,71 +105,23 @@ char const *udev_device_get_devnode(struct udev_device *udev_device) {
   return udev_device->syspath;
 }
 
+dev_t udev_device_get_devnum(struct udev_device *udev_device) {
+  fprintf(stderr, "udev_device_get_devnum\n");
+  return udev_device->devnum;
+}
+
 char const *udev_device_get_property_value(struct udev_device *dev,
                                            char const *property) {
   fprintf(stderr, "udev_device_get_property_value %s\n", property);
+  struct udev_list_entry *entry;
 
-  if (strcmp("ID_INPUT", property) == 0) {
-    fprintf(stderr, "udev_device_get_property_value return 1\n");
-    return (char const *)1;
+  udev_list_entry_foreach(entry, dev->properties_list) {
+    if (strcmp(entry->name, property) == 0) {
+      return entry->value;
+    }
   }
 
-  char const *retval = NULL;
-
-  int fd = open(dev->syspath, O_RDONLY | O_NONBLOCK);
-  if (fd == -1) {
-    return NULL;
-  }
-
-  struct libevdev *evdev = NULL;
-  if (libevdev_new_from_fd(fd, &evdev) != 0) {
-    fprintf(stderr,
-            "udev_device_get_property_value: could not create evdev\n");
-    close(fd);
-    return NULL;
-  }
-
-  if (strcmp("ID_INPUT_TOUCHPAD", property) == 0) {
-    if (libevdev_has_event_code(evdev, EV_ABS, ABS_X) &&
-        libevdev_has_event_code(evdev, EV_ABS, ABS_Y) &&
-        libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_FINGER) &&
-        !libevdev_has_event_code(evdev, EV_KEY, BTN_STYLUS) &&
-        !libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_PEN)) {
-      retval = (char const *)1;
-    }
-  } else if (strcmp("ID_INPUT_MOUSE", property) == 0) {
-    if (libevdev_has_event_code(evdev, EV_REL, REL_X) &&
-        libevdev_has_event_code(evdev, EV_REL, REL_Y) &&
-        libevdev_has_event_code(evdev, EV_KEY, BTN_MOUSE)) {
-      retval = (char const *)1;
-    }
-    if (libevdev_has_event_code(evdev, EV_ABS, ABS_X) &&
-        libevdev_has_event_code(evdev, EV_ABS, ABS_Y) &&
-        !libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_FINGER) &&
-        !libevdev_has_event_code(evdev, EV_KEY, BTN_STYLUS) &&
-        !libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_PEN) &&
-        libevdev_has_event_code(evdev, EV_KEY, BTN_MOUSE)) {
-      retval = (char const *)1;
-    }
-  } else if (strcmp("ID_INPUT_KEYBOARD", property) == 0) {
-    bool is_keyboard = true;
-    for (int i = KEY_ESC; i <= KEY_D; ++i) {
-      if (!libevdev_has_event_code(evdev, EV_KEY, i)) {
-        is_keyboard = false;
-        break;
-      }
-    }
-    if (is_keyboard)
-      retval = (char const *)1;
-  }
-
-  libevdev_free(evdev);
-  close(fd);
-
-  fprintf(stderr, "udev_device_get_property_value return %p\n",
-          (void *)retval);
-
-  return retval;
+  return NULL;
 }
 
 struct udev *udev_device_get_udev(struct udev_device *udev_device) {
@@ -111,16 +129,124 @@ struct udev *udev_device_get_udev(struct udev_device *udev_device) {
   return udev_device->udev;
 }
 
+static int populate_properties_list(struct udev_device *udev_device) {
+  int ret = 0;
+
+  char const *ids[] = { "ID_INPUT", "ID_INPUT_TOUCHPAD",
+    "ID_INPUT_MOUSE", "ID_INPUT_KEYBOARD" };
+
+  int fd = open(udev_device->syspath, O_RDONLY | O_NONBLOCK);
+  if (fd == -1) {
+    return -1;
+  }
+
+  struct libevdev *evdev = NULL;
+  if (libevdev_new_from_fd(fd, &evdev) != 0) {
+    fprintf(stderr,
+            "udev_device_get_property_value: could not create evdev\n");
+    close(fd);
+    return -1;
+  }
+
+  for (int i = 0; i < nitems(ids); ++i) {
+    char const *id = ids[i];
+    struct udev_list_entry *le;
+
+    if (strcmp(id, "ID_INPUT") == 0) {
+      le = create_list_entry_name_value(id, NULL);
+    } else if (strcmp(id, "ID_INPUT_TOUCHPAD") == 0) {
+      if (libevdev_has_event_code(evdev, EV_ABS, ABS_X) &&
+          libevdev_has_event_code(evdev, EV_ABS, ABS_Y) &&
+          libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_FINGER) &&
+          !libevdev_has_event_code(evdev, EV_KEY, BTN_STYLUS) &&
+          !libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_PEN)) {
+        le = create_list_entry_name_value(id, NULL);
+      } else {
+        continue;
+      }
+    } else if (strcmp(id, "ID_INPUT_MOUSE") == 0) {
+      int is_mouse = 0;
+      if (libevdev_has_event_code(evdev, EV_REL, REL_X) &&
+          libevdev_has_event_code(evdev, EV_REL, REL_Y) &&
+          libevdev_has_event_code(evdev, EV_KEY, BTN_MOUSE)) {
+        is_mouse = 1;
+      }
+      if (libevdev_has_event_code(evdev, EV_ABS, ABS_X) &&
+          libevdev_has_event_code(evdev, EV_ABS, ABS_Y) &&
+          !libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_FINGER) &&
+          !libevdev_has_event_code(evdev, EV_KEY, BTN_STYLUS) &&
+          !libevdev_has_event_code(evdev, EV_KEY, BTN_TOOL_PEN) &&
+          libevdev_has_event_code(evdev, EV_KEY, BTN_MOUSE)) {
+        is_mouse = 1;
+      }
+      if (is_mouse) {
+        le = create_list_entry_name_value(id, NULL);
+      } else {
+        continue;
+      }
+    } else if (strcmp(id, "ID_INPUT_KEYBOARD") == 0) {
+      bool is_keyboard = true;
+      for (int i = KEY_ESC; i <= KEY_D; ++i) {
+        if (!libevdev_has_event_code(evdev, EV_KEY, i)) {
+          is_keyboard = false;
+          break;
+        }
+      }
+      if (is_keyboard) {
+        le = create_list_entry_name_value(id, NULL);
+      } else {
+        continue;
+      }
+    } else {
+      continue;
+    }
+
+    if (!le) {
+      free_dev_list(&udev_device->properties_list);
+      ret = -1;
+      goto out;
+    }
+
+    struct udev_list_entry **list_end = &udev_device->properties_list;
+    while (*list_end) {
+      list_end = &((*list_end)->next);
+    }
+
+    *list_end = le;
+  }
+
+out:
+  libevdev_free(evdev);
+  close(fd);
+
+  return ret;
+}
+
 struct udev_device *udev_device_new_from_syspath(struct udev *udev,
                                                         const char *syspath) {
-  fprintf(stderr, "udev_device_new_from_syspath\n");
+  fprintf(stderr, "udev_device_new_from_syspath %s\n", syspath);
   struct udev_device *u = calloc(1, sizeof(struct udev_device));
   if (u) {
+    struct stat st;
+    if (stat(syspath, &st) == 0) {
+      u->devnum = st.st_rdev;
+    } else {
+      free(u);
+      return NULL;
+    }
+
     // TODO: increase refcount?
     u->udev = udev;
     u->refcount = 1;
     snprintf(u->syspath, sizeof(u->syspath), "%s", syspath);
     u->sysname = (char const *)u->syspath + 11;
+    u->subsystem = "input";
+
+    if (populate_properties_list(u) == -1) {
+      udev_device_unref(u);
+      return NULL;
+    }
+
     return u;
   }
   return NULL;
@@ -136,6 +262,23 @@ const char *udev_device_get_sysname(struct udev_device *udev_device) {
   return udev_device->sysname;
 }
 
+const char *udev_device_get_subsystem(struct udev_device *udev_device) {
+  fprintf(stderr, "udev_device_get_subsystem\n");
+  return udev_device->subsystem;
+}
+
+const char *udev_device_get_sysattr_value(
+    struct udev_device *udev_device, const char *sysattr) {
+  fprintf(stderr, "stub: udev_device_get_sysattr_value %s\n", sysattr);
+  return NULL;
+}
+
+struct udev_list_entry *udev_device_get_properties_list_entry(
+    struct udev_device *udev_device) {
+  fprintf(stderr, "udev_device_get_properties_list_entry\n");
+  return udev_device->properties_list;
+}
+
 struct udev_device *udev_device_ref(struct udev_device *udev_device) {
   fprintf(stderr, "udev_device_ref\n");
   ++udev_device->refcount;
@@ -148,6 +291,7 @@ void udev_device_unref(struct udev_device *udev_device) {
 
   --udev_device->refcount;
   if (udev_device->refcount == 0) {
+    free_dev_list(&udev_device->properties_list);
     free(udev_device);
   }
 }
@@ -209,25 +353,6 @@ int udev_enumerate_add_match_subsystem(
   }
 }
 
-static struct udev_list_entry *create_list_entry(char const *path) {
-  struct udev_list_entry *le = calloc(1, sizeof(struct udev_list_entry));
-  if (!le)
-    return NULL;
-  snprintf(le->path, sizeof(le->path), "%s", path);
-  return le;
-}
-
-void free_dev_list(struct udev_list_entry **list) {
-  if (!*list)
-    return;
-
-  if ((*list)->next)
-    free_dev_list(&(*list)->next);
-
-  free(*list);
-  *list = NULL;
-}
-
 int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate) {
   fprintf(stderr, "udev_enumerate_scan_devices\n");
 
@@ -244,11 +369,13 @@ int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate) {
       continue;
     }
 
-    struct udev_list_entry *le = create_list_entry(path);
+    struct udev_list_entry *le = create_list_entry_name(path);
     if (!le) {
       free_dev_list(&udev_enumerate->dev_list);
       return -1;
     }
+
+    fprintf(stderr, "udev_enumerate_scan_devices, added %s\n", path);
 
     struct udev_list_entry **list_end = &udev_enumerate->dev_list;
     while (*list_end) {
@@ -257,6 +384,12 @@ int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate) {
 
     *list_end = le;
   }
+
+  struct udev_list_entry *entry;
+  udev_list_entry_foreach(entry, udev_enumerate->dev_list) {
+    fprintf(stderr, "udev_enumerate_scan_devices, list %s\n", entry->name);
+  }
+  fprintf(stderr, "udev_enumerate_scan_devices, list end\n");
 
   return 0;
 }
@@ -269,7 +402,12 @@ struct udev_list_entry *udev_enumerate_get_list_entry(
 const char *udev_list_entry_get_name(
     struct udev_list_entry *list_entry) {
   fprintf(stderr, "udev_list_entry_get_name\n");
-  return list_entry->path;
+  return list_entry->name;
+}
+
+struct udev_list_entry *udev_list_entry_get_next(
+    struct udev_list_entry *list_entry) {
+  return list_entry->next;
 }
 
 void udev_enumerate_unref(struct udev_enumerate *udev_enumerate) {
