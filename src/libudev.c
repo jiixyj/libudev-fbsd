@@ -349,5 +349,11 @@ const char *udev_device_get_action(struct udev_device *udev_device) {
 
 LIBINPUT_EXPORT
 void udev_monitor_unref(struct udev_monitor *udev_monitor) {
-  fprintf(stderr, "stub: udev_monitor_unref\n");
+  fprintf(stderr, "udev_monitor_unref\n");
+  --udev_monitor->refcount;
+  if (udev_monitor->refcount == 0) {
+    close(udev_monitor->fake_fds[0];
+    close(udev_monitor->fake_fds[1];
+    free(udev_monitor);
+  }
 }
