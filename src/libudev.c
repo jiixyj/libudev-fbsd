@@ -1,8 +1,15 @@
 #include "libudev.h"
 
+#include <sys/socket.h>
+#include <sys/un.h>
+
 #include <errno.h>
 #include <stdbool.h>
 #include <string.h>
+
+#include <poll.h>
+#include <pthread.h>
+
 #include <libevdev/libevdev.h>
 
 #define LIBINPUT_EXPORT
@@ -299,16 +306,23 @@ struct udev_monitor *udev_monitor_new_from_netlink(struct udev *udev,
                                                           const char *name) {
   fprintf(stderr, "udev_monitor_new_from_netlink %p\n", udev);
 
+  if (name == NULL || strcmp(name, "udev") != 0) {
+    return NULL;
+  }
+
   struct udev_monitor *u = calloc(1, sizeof(struct udev_monitor));
   if (!u) {
     return NULL;
   }
 
-  if (pipe2(u->fake_fds, O_CLOEXEC) == -1) {
+  if (pipe2(u->pipe_fds, O_CLOEXEC) == -1) {
     free(u);
     return NULL;
   }
 
+  // TODO: increase refcount?
+  u->udev = udev;
+  u->devd_socket = -1;
   u->refcount = 1;
 
   return u;
@@ -318,33 +332,145 @@ LIBINPUT_EXPORT
 int udev_monitor_filter_add_match_subsystem_devtype(
     struct udev_monitor *udev_monitor, const char *subsystem,
     const char *devtype) {
-  fprintf(stderr, "stub: udev_monitor_filter_add_match_subsystem_devtype\n");
-  return 0;
+  fprintf(stderr, "udev_monitor_filter_add_match_subsystem_devtype\n");
+
+  if (devtype != NULL) {
+    return -1;
+  }
+
+  if (subsystem == NULL || strcmp(subsystem, "input") != 0) {
+    return -1;
+  } else {
+    udev_monitor->scan_for_input = 1;
+    return 0;
+  }
+}
+
+static void *devd_listener(void *arg) {
+  struct udev_monitor *udev_monitor = (struct udev_monitor *)arg;
+
+  for (;;) {
+    int cmp;
+    ssize_t len;
+    char event[1024];
+
+    struct pollfd pfd = {udev_monitor->devd_socket, POLLIN};
+    int ret = poll(&pfd, 1, INFTIM);
+    if (ret <= 0 || !(pfd.revents & POLLIN)) {
+      return NULL;
+    }
+
+    len = recv(udev_monitor->devd_socket, event, sizeof(event) - 1, MSG_WAITALL);
+    if (len == -1) {
+      perror("recv");
+      return (void *) 1;
+    }
+
+    if (!udev_monitor->scan_for_input) {
+      continue;
+    }
+
+    event[len] = '\0';
+
+    if (len >= 1 && event[len - 1] == '\n') {
+      event[len - 1] = '\0';
+    }
+
+    char *device = strstr(event, "cdev=input/event");
+    if (!device) {
+      continue;
+    }
+
+    char msg[32] = {0};
+    snprintf(&msg[1], sizeof(msg) - 1, "%s", device + 5);
+    if (strstr(event, "type=CREATE") != NULL) {
+      msg[0] = '+';
+    } else if (strstr(event, "type=DESTROY") != NULL) {
+      msg[0] = '-';
+    } else {
+      continue;
+    }
+
+    write(udev_monitor->pipe_fds[1], msg, 32);
+  }
+
+  return NULL;
 }
 
 LIBINPUT_EXPORT
 int udev_monitor_enable_receiving(struct udev_monitor *udev_monitor) {
   fprintf(stderr, "stub: udev_monitor_enable_receiving\n");
-  return 0;
+
+  struct sockaddr_un devd_addr;
+
+  memset(&devd_addr, 0, sizeof(devd_addr));
+  devd_addr.sun_family = PF_LOCAL;
+  strlcpy(devd_addr.sun_path, "/var/run/devd.seqpacket.pipe",
+          sizeof(devd_addr.sun_path));
+
+  udev_monitor->devd_socket = socket(PF_LOCAL, SOCK_SEQPACKET, 0);
+  if (udev_monitor->devd_socket == -1) {
+    perror("socket");
+    return -1;
+  }
+  int error = connect(udev_monitor->devd_socket, (struct sockaddr *)&devd_addr,
+                      SUN_LEN(&devd_addr));
+  if (error == -1) {
+    perror("connect");
+    close(udev_monitor->devd_socket);
+    udev_monitor->devd_socket = -1;
+    return -1;
+  }
+
+  if (pthread_create(&udev_monitor->devd_thread, NULL, devd_listener,
+      udev_monitor) == 0) {
+    return 0;
+  } else {
+    close(udev_monitor->devd_socket);
+    udev_monitor->devd_socket = -1;
+    return -1;
+  }
 }
 
 LIBINPUT_EXPORT
 int udev_monitor_get_fd(struct udev_monitor *udev_monitor) {
   fprintf(stderr, "udev_monitor_get_fd\n");
-  return udev_monitor->fake_fds[0];
+  return udev_monitor->pipe_fds[0];
 }
 
 LIBINPUT_EXPORT
 struct udev_device *udev_monitor_receive_device(
     struct udev_monitor *udev_monitor) {
-  fprintf(stderr, "stub: udev_monitor_receive_device\n");
-  return NULL;
+  fprintf(stderr, "udev_monitor_receive_device\n");
+
+  char msg[32];
+  if (read(udev_monitor->pipe_fds[0], msg, 32) != 32) {
+    return NULL;
+  }
+
+  char path[32];
+  snprintf(path, sizeof(path), "/dev/%s", &msg[1]);
+
+  struct udev_device *udev_device =
+      udev_device_new_from_syspath(udev_monitor->udev, path);
+
+  if (!udev_device) {
+    return NULL;
+  }
+
+  if (msg[0] == '+') {
+    udev_device->action = "add";
+  } else if (msg[0] == '-') {
+    udev_device->action = "remove";
+  }
+
+  return udev_device;
 }
 
 LIBINPUT_EXPORT
 const char *udev_device_get_action(struct udev_device *udev_device) {
   fprintf(stderr, "stub: udev_device_get_action\n");
-  return NULL;
+  return udev_device->action;
 }
 
 LIBINPUT_EXPORT
@@ -352,8 +478,13 @@ void udev_monitor_unref(struct udev_monitor *udev_monitor) {
   fprintf(stderr, "udev_monitor_unref\n");
   --udev_monitor->refcount;
   if (udev_monitor->refcount == 0) {
-    close(udev_monitor->fake_fds[0];
-    close(udev_monitor->fake_fds[1];
+    if (udev_monitor->devd_socket != -1) {
+      close(udev_monitor->devd_socket);
+      pthread_join(udev_monitor->devd_thread, NULL);
+      udev_monitor->devd_socket = -1;
+    }
+    close(udev_monitor->pipe_fds[0]);
+    close(udev_monitor->pipe_fds[1]);
     free(udev_monitor);
   }
 }

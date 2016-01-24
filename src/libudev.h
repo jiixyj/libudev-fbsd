@@ -15,6 +15,7 @@ struct udev_device {
   int refcount;
   char syspath[32];
   char const *sysname;
+  char const *action;
 };
 struct udev {
   int refcount;
@@ -24,8 +25,12 @@ struct udev_list_entry {
   struct udev_list_entry *next;
 };
 struct udev_monitor {
+  struct udev *udev;
   int refcount;
-  int fake_fds[2];
+  int scan_for_input;
+  int pipe_fds[2];
+  pthread_t devd_thread;
+  int devd_socket;
 };
 struct udev_enumerate {
   int refcount;
