@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 struct udev_device {
+  struct udev *udev;
   int refcount;
   char syspath[32];
   char const *sysname;

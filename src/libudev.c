@@ -45,7 +45,7 @@ char const *udev_device_get_devnode(struct udev_device *udev_device) {
 LIBINPUT_EXPORT
 char const *udev_device_get_property_value(struct udev_device *dev,
                                            char const *property) {
-  fprintf(stderr, "stub: udev_device_get_property_value %s\n", property);
+  fprintf(stderr, "udev_device_get_property_value %s\n", property);
 
   if (strcmp("ID_INPUT", property) == 0) {
     fprintf(stderr, "udev_device_get_property_value return 1\n");
@@ -111,9 +111,9 @@ char const *udev_device_get_property_value(struct udev_device *dev,
 }
 
 LIBINPUT_EXPORT
-struct udev *udev_device_get_udev(struct udev_device *dummy __unused) {
-  fprintf(stderr, "stub: udev_device_get_udev\n");
-  return NULL;
+struct udev *udev_device_get_udev(struct udev_device *udev_device) {
+  fprintf(stderr, "udev_device_get_udev\n");
+  return udev_device->udev;
 }
 
 LIBINPUT_EXPORT
@@ -122,6 +122,8 @@ struct udev_device *udev_device_new_from_syspath(struct udev *udev,
   fprintf(stderr, "udev_device_new_from_syspath\n");
   struct udev_device *u = calloc(1, sizeof(struct udev_device));
   if (u) {
+    // TODO: increase refcount?
+    u->udev = udev;
     u->refcount = 1;
     snprintf(u->syspath, sizeof(u->syspath), "%s", syspath);
     u->sysname = (char const *)u->syspath + 11;
