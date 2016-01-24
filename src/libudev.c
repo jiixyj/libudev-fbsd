@@ -13,6 +13,12 @@
 
 #include <libevdev/libevdev.h>
 
+#if 0
+#define LOG(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define LOG(...)
+#endif
+
 struct udev_device {
 	struct udev *udev;
 	int refcount;
@@ -76,7 +82,7 @@ static void free_dev_list(struct udev_list_entry **list) {
 
 struct udev_device *udev_device_new_from_devnum(
     struct udev *udev, char type, dev_t devnum) {
-	fprintf(stderr, "udev_device_new_from_devnum %d\n", (int)devnum);
+	LOG("udev_device_new_from_devnum %d\n", (int)devnum);
 
 	if (type != 'c') {
 		return NULL;
@@ -88,10 +94,10 @@ struct udev_device *udev_device_new_from_devnum(
 	for (int i = 0; i < 100; ++i) {
 		snprintf(path, sizeof(path), "/dev/input/event%d", i);
 
-		fprintf(stderr, "path: %s\n", path);
+		LOG("path: %s\n", path);
 
 		if (stat(path, &st) == 0 && st.st_rdev == devnum) {
-			fprintf(stderr, "  %s\n", path + 11);
+			LOG("  %s\n", path + 11);
 			return udev_device_new_from_syspath(udev, path);
 		}
 	}
@@ -100,18 +106,18 @@ struct udev_device *udev_device_new_from_devnum(
 }
 
 char const *udev_device_get_devnode(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_get_devnode\n");
+	LOG("udev_device_get_devnode\n");
 	return udev_device->syspath;
 }
 
 dev_t udev_device_get_devnum(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_get_devnum\n");
+	LOG("udev_device_get_devnum\n");
 	return udev_device->devnum;
 }
 
 char const *udev_device_get_property_value(
     struct udev_device *dev, char const *property) {
-	fprintf(stderr, "udev_device_get_property_value %s\n", property);
+	LOG("udev_device_get_property_value %s\n", property);
 	struct udev_list_entry *entry;
 
 	udev_list_entry_foreach(entry, dev->properties_list) {
@@ -124,7 +130,7 @@ char const *udev_device_get_property_value(
 }
 
 struct udev *udev_device_get_udev(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_get_udev\n");
+	LOG("udev_device_get_udev\n");
 	return udev_device->udev;
 }
 
@@ -141,8 +147,8 @@ static int populate_properties_list(struct udev_device *udev_device) {
 
 	struct libevdev *evdev = NULL;
 	if (libevdev_new_from_fd(fd, &evdev) != 0) {
-		fprintf(stderr, "udev_device_get_property_value: could not "
-				"create evdev\n");
+		LOG("udev_device_get_property_value: could not "
+		    "create evdev\n");
 		close(fd);
 		return -1;
 	}
@@ -233,7 +239,7 @@ out:
 
 struct udev_device *udev_device_new_from_syspath(
     struct udev *udev, const char *syspath) {
-	fprintf(stderr, "udev_device_new_from_syspath %s\n", syspath);
+	LOG("udev_device_new_from_syspath %s\n", syspath);
 	struct udev_device *u = calloc(1, sizeof(struct udev_device));
 	if (u) {
 		struct stat st;
@@ -262,40 +268,41 @@ struct udev_device *udev_device_new_from_syspath(
 }
 
 const char *udev_device_get_syspath(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_get_syspath\n");
+	LOG("udev_device_get_syspath\n");
 	return udev_device->syspath;
 }
 
 const char *udev_device_get_sysname(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_get_sysname\n");
+	LOG("udev_device_get_sysname\n");
 	return udev_device->sysname;
 }
 
 const char *udev_device_get_subsystem(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_get_subsystem\n");
+	LOG("udev_device_get_subsystem\n");
 	return udev_device->subsystem;
 }
 
 const char *udev_device_get_sysattr_value(
     struct udev_device *udev_device __unused, const char *sysattr) {
-	fprintf(stderr, "stub: udev_device_get_sysattr_value %s\n", sysattr);
+	(void)sysattr;
+	LOG("stub: udev_device_get_sysattr_value %s\n", sysattr);
 	return NULL;
 }
 
 struct udev_list_entry *udev_device_get_properties_list_entry(
     struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_get_properties_list_entry\n");
+	LOG("udev_device_get_properties_list_entry\n");
 	return udev_device->properties_list;
 }
 
 struct udev_device *udev_device_ref(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_ref\n");
+	LOG("udev_device_ref\n");
 	++udev_device->refcount;
 	return udev_device;
 }
 
 void udev_device_unref(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_unref %p %d\n", (void *)udev_device,
+	LOG("udev_device_unref %p %d\n", (void *)udev_device,
 	    udev_device->refcount);
 
 	--udev_device->refcount;
@@ -306,25 +313,27 @@ void udev_device_unref(struct udev_device *udev_device) {
 }
 
 struct udev_device *udev_device_get_parent(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_get_parent %p %d\n", (void *)udev_device,
+	(void)udev_device;
+	LOG("udev_device_get_parent %p %d\n", (void *)udev_device,
 	    udev_device->refcount);
 	return NULL;
 }
 
 int udev_device_get_is_initialized(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_get_is_initialized %p %d\n",
-	    (void *)udev_device, udev_device->refcount);
+	(void)udev_device;
+	LOG("udev_device_get_is_initialized %p %d\n", (void *)udev_device,
+	    udev_device->refcount);
 	return 1;
 }
 
 struct udev *udev_ref(struct udev *udev) {
-	fprintf(stderr, "udev_ref\n");
+	LOG("udev_ref\n");
 	++udev->refcount;
 	return udev;
 }
 
 void udev_unref(struct udev *udev) {
-	fprintf(stderr, "udev_unref\n");
+	LOG("udev_unref\n");
 	--udev->refcount;
 	if (udev->refcount == 0) {
 		free(udev);
@@ -332,7 +341,7 @@ void udev_unref(struct udev *udev) {
 }
 
 struct udev *udev_new(void) {
-	fprintf(stderr, "udev_new\n");
+	LOG("udev_new\n");
 	struct udev *u = calloc(1, sizeof(struct udev));
 	if (u) {
 		u->refcount = 1;
@@ -342,7 +351,7 @@ struct udev *udev_new(void) {
 }
 
 struct udev_enumerate *udev_enumerate_new(struct udev *udev __unused) {
-	fprintf(stderr, "udev_enumerate_new\n");
+	LOG("udev_enumerate_new\n");
 	struct udev_enumerate *u = calloc(1, sizeof(struct udev_enumerate));
 	if (u) {
 		u->refcount = 1;
@@ -353,7 +362,7 @@ struct udev_enumerate *udev_enumerate_new(struct udev *udev __unused) {
 
 int udev_enumerate_add_match_subsystem(
     struct udev_enumerate *udev_enumerate, const char *subsystem) {
-	fprintf(stderr, "udev_enumerate_add_match_subsystem\n");
+	LOG("udev_enumerate_add_match_subsystem\n");
 	if (strcmp(subsystem, "input") != 0) {
 		return -1;
 	} else {
@@ -363,7 +372,7 @@ int udev_enumerate_add_match_subsystem(
 }
 
 int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate) {
-	fprintf(stderr, "udev_enumerate_scan_devices\n");
+	LOG("udev_enumerate_scan_devices\n");
 
 	if (!udev_enumerate->scan_for_input) {
 		return 0;
@@ -385,8 +394,7 @@ int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate) {
 			return -1;
 		}
 
-		fprintf(
-		    stderr, "udev_enumerate_scan_devices, added %s\n", path);
+		LOG("udev_enumerate_scan_devices, added %s\n", path);
 
 		while (*list_end) {
 			list_end = &((*list_end)->next);
@@ -405,18 +413,18 @@ struct udev_list_entry *udev_enumerate_get_list_entry(
 
 int udev_enumerate_add_match_sysname(
     struct udev_enumerate *udev_enumerate __unused, const char *sysname) {
-	fprintf(
-	    stderr, "stub: udev_enumerate_add_match_sysname %s\n", sysname);
+	(void)sysname;
+	LOG("stub: udev_enumerate_add_match_sysname %s\n", sysname);
 	return -1;
 }
 
 const char *udev_list_entry_get_name(struct udev_list_entry *list_entry) {
-	fprintf(stderr, "udev_list_entry_get_name\n");
+	LOG("udev_list_entry_get_name\n");
 	return list_entry->name;
 }
 
 const char *udev_list_entry_get_value(struct udev_list_entry *list_entry) {
-	fprintf(stderr, "udev_list_entry_get_name\n");
+	LOG("udev_list_entry_get_name\n");
 	return list_entry->has_value ? list_entry->value : NULL;
 }
 
@@ -426,7 +434,7 @@ struct udev_list_entry *udev_list_entry_get_next(
 }
 
 void udev_enumerate_unref(struct udev_enumerate *udev_enumerate) {
-	fprintf(stderr, "udev_enumerate_unref\n");
+	LOG("udev_enumerate_unref\n");
 	--udev_enumerate->refcount;
 	if (udev_enumerate->refcount == 0) {
 		free_dev_list(&udev_enumerate->dev_list);
@@ -436,7 +444,7 @@ void udev_enumerate_unref(struct udev_enumerate *udev_enumerate) {
 
 struct udev_monitor *udev_monitor_new_from_netlink(
     struct udev *udev, const char *name) {
-	fprintf(stderr, "udev_monitor_new_from_netlink %p\n", (void *)udev);
+	LOG("udev_monitor_new_from_netlink %p\n", (void *)udev);
 
 	if (name == NULL || strcmp(name, "udev") != 0) {
 		return NULL;
@@ -463,7 +471,7 @@ struct udev_monitor *udev_monitor_new_from_netlink(
 int udev_monitor_filter_add_match_subsystem_devtype(
     struct udev_monitor *udev_monitor, const char *subsystem,
     const char *devtype) {
-	fprintf(stderr, "udev_monitor_filter_add_match_subsystem_devtype\n");
+	LOG("udev_monitor_filter_add_match_subsystem_devtype\n");
 
 	if (devtype != NULL) {
 		return -1;
@@ -529,7 +537,7 @@ static void *devd_listener(void *arg) {
 }
 
 int udev_monitor_enable_receiving(struct udev_monitor *udev_monitor) {
-	fprintf(stderr, "udev_monitor_enable_receiving\n");
+	LOG("udev_monitor_enable_receiving\n");
 
 	struct sockaddr_un devd_addr;
 
@@ -563,18 +571,18 @@ int udev_monitor_enable_receiving(struct udev_monitor *udev_monitor) {
 }
 
 int udev_monitor_get_fd(struct udev_monitor *udev_monitor) {
-	fprintf(stderr, "udev_monitor_get_fd\n");
+	LOG("udev_monitor_get_fd\n");
 	return udev_monitor->pipe_fds[0];
 }
 
 struct udev *udev_monitor_get_udev(struct udev_monitor *udev_monitor) {
-	fprintf(stderr, "udev_monitor_get_udev\n");
+	LOG("udev_monitor_get_udev\n");
 	return udev_monitor->udev;
 }
 
 struct udev_device *udev_monitor_receive_device(
     struct udev_monitor *udev_monitor) {
-	fprintf(stderr, "udev_monitor_receive_device\n");
+	LOG("udev_monitor_receive_device\n");
 
 	char msg[32];
 	if (read(udev_monitor->pipe_fds[0], msg, 32) != 32) {
@@ -601,12 +609,12 @@ struct udev_device *udev_monitor_receive_device(
 }
 
 const char *udev_device_get_action(struct udev_device *udev_device) {
-	fprintf(stderr, "stub: udev_device_get_action\n");
+	LOG("stub: udev_device_get_action\n");
 	return udev_device->action;
 }
 
 void udev_monitor_unref(struct udev_monitor *udev_monitor) {
-	fprintf(stderr, "udev_monitor_unref\n");
+	LOG("udev_monitor_unref\n");
 	--udev_monitor->refcount;
 	if (udev_monitor->refcount == 0) {
 		if (udev_monitor->devd_socket != -1) {
