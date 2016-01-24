@@ -45,42 +45,18 @@ char const *udev_device_get_property_value(struct udev_device *dev,
     return (char const *)1;
   }
 
-  struct stat st;
-  if (stat(dev->syspath, &st) != 0) {
-    return NULL;
-  }
-
-  int fd;
-  int max_fd = 128;
-  for (fd = 0; fd < max_fd; ++fd) {
-    struct stat fst;
-    if (fstat(fd, &fst) != 0) {
-      if (errno != EBADF) {
-        perror("fstat");
-        return NULL;
-      } else {
-        continue;
-      }
-    }
-
-    // fprintf(stderr, "stats fd %d: %d %d\n", fd, (int) fst.st_rdev, (int) st.st_rdev);
-
-    if (fst.st_rdev == st.st_rdev) {
-      break;
-    }
-  }
-
-  if (fd == max_fd) {
-    // fprintf(stderr, "udev_device_get_property_value: MAX fd reached\n");
-    return NULL;
-  }
-
   char const *retval = NULL;
+
+  int fd = open(dev->syspath, O_RDONLY | O_NONBLOCK);
+  if (fd == -1) {
+    return NULL;
+  }
 
   struct libevdev *evdev = NULL;
   if (libevdev_new_from_fd(fd, &evdev) != 0) {
     fprintf(stderr,
             "udev_device_get_property_value: could not create evdev\n");
+    close(fd);
     return NULL;
   }
 
@@ -119,6 +95,7 @@ char const *udev_device_get_property_value(struct udev_device *dev,
   }
 
   libevdev_free(evdev);
+  close(fd);
 
   fprintf(stderr, "udev_device_get_property_value return %p\n",
           (void *)retval);
