@@ -247,8 +247,12 @@ int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate) {
 
   char path[32];
 
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 100; ++i) {
     snprintf(path, sizeof(path), "/dev/input/event%d", i);
+
+    if (access(path, R_OK) != 0) {
+      continue;
+    }
 
     struct udev_list_entry *le = create_list_entry(path);
     if (!le) {
