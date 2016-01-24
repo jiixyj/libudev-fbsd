@@ -119,7 +119,7 @@ struct udev *udev_device_get_udev(struct udev_device *dummy __unused) {
 LIBINPUT_EXPORT
 struct udev_device *udev_device_new_from_syspath(struct udev *udev,
                                                         const char *syspath) {
-  fprintf(stderr, "stub: udev_list_entry_get_name\n");
+  fprintf(stderr, "udev_device_new_from_syspath\n");
   struct udev_device *u = calloc(1, sizeof(struct udev_device));
   if (u) {
     u->refcount = 1;
@@ -399,7 +399,7 @@ static void *devd_listener(void *arg) {
 
 LIBINPUT_EXPORT
 int udev_monitor_enable_receiving(struct udev_monitor *udev_monitor) {
-  fprintf(stderr, "stub: udev_monitor_enable_receiving\n");
+  fprintf(stderr, "udev_monitor_enable_receiving\n");
 
   struct sockaddr_un devd_addr;
 
