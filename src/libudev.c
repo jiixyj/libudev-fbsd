@@ -147,6 +147,8 @@ static int populate_properties_list(struct udev_device *udev_device) {
 		return -1;
 	}
 
+	struct udev_list_entry **list_end = &udev_device->properties_list;
+
 	for (unsigned i = 0; i < nitems(ids); ++i) {
 		char const *id = ids[i];
 		struct udev_list_entry *le;
@@ -215,8 +217,6 @@ static int populate_properties_list(struct udev_device *udev_device) {
 			goto out;
 		}
 
-		struct udev_list_entry **list_end =
-		    &udev_device->properties_list;
 		while (*list_end) {
 			list_end = &((*list_end)->next);
 		}
@@ -370,6 +370,7 @@ int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate) {
 	}
 
 	char path[32];
+	struct udev_list_entry **list_end = &udev_enumerate->dev_list;
 
 	for (int i = 0; i < 100; ++i) {
 		snprintf(path, sizeof(path), "/dev/input/event%d", i);
@@ -387,20 +388,12 @@ int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate) {
 		fprintf(
 		    stderr, "udev_enumerate_scan_devices, added %s\n", path);
 
-		struct udev_list_entry **list_end = &udev_enumerate->dev_list;
 		while (*list_end) {
 			list_end = &((*list_end)->next);
 		}
 
 		*list_end = le;
 	}
-
-	struct udev_list_entry *entry;
-	udev_list_entry_foreach(entry, udev_enumerate->dev_list) {
-		fprintf(stderr, "udev_enumerate_scan_devices, list %s\n",
-		    entry->name);
-	}
-	fprintf(stderr, "udev_enumerate_scan_devices, list end\n");
 
 	return 0;
 }
