@@ -78,6 +78,10 @@ struct udev_device *udev_device_new_from_devnum(
     struct udev *udev, char type, dev_t devnum) {
 	fprintf(stderr, "udev_device_new_from_devnum %d\n", (int)devnum);
 
+	if (type != 'c') {
+		return NULL;
+	}
+
 	char path[32];
 	struct stat st;
 
@@ -143,7 +147,7 @@ static int populate_properties_list(struct udev_device *udev_device) {
 		return -1;
 	}
 
-	for (int i = 0; i < nitems(ids); ++i) {
+	for (unsigned i = 0; i < nitems(ids); ++i) {
 		char const *id = ids[i];
 		struct udev_list_entry *le;
 
@@ -189,9 +193,9 @@ static int populate_properties_list(struct udev_device *udev_device) {
 			}
 		} else if (strcmp(id, "ID_INPUT_KEYBOARD") == 0) {
 			bool is_keyboard = true;
-			for (int i = KEY_ESC; i <= KEY_D; ++i) {
+			for (unsigned k = KEY_ESC; k <= KEY_D; ++k) {
 				if (!libevdev_has_event_code(
-					evdev, EV_KEY, i)) {
+					evdev, EV_KEY, k)) {
 					is_keyboard = false;
 					break;
 				}
@@ -273,7 +277,7 @@ const char *udev_device_get_subsystem(struct udev_device *udev_device) {
 }
 
 const char *udev_device_get_sysattr_value(
-    struct udev_device *udev_device, const char *sysattr) {
+    struct udev_device *udev_device __unused, const char *sysattr) {
 	fprintf(stderr, "stub: udev_device_get_sysattr_value %s\n", sysattr);
 	return NULL;
 }
@@ -291,7 +295,7 @@ struct udev_device *udev_device_ref(struct udev_device *udev_device) {
 }
 
 void udev_device_unref(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_unref %p %d\n", udev_device,
+	fprintf(stderr, "udev_device_unref %p %d\n", (void *)udev_device,
 	    udev_device->refcount);
 
 	--udev_device->refcount;
@@ -302,14 +306,14 @@ void udev_device_unref(struct udev_device *udev_device) {
 }
 
 struct udev_device *udev_device_get_parent(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_get_parent %p %d\n", udev_device,
+	fprintf(stderr, "udev_device_get_parent %p %d\n", (void *)udev_device,
 	    udev_device->refcount);
 	return NULL;
 }
 
 int udev_device_get_is_initialized(struct udev_device *udev_device) {
-	fprintf(stderr, "udev_device_get_is_initialized %p %d\n", udev_device,
-	    udev_device->refcount);
+	fprintf(stderr, "udev_device_get_is_initialized %p %d\n",
+	    (void *)udev_device, udev_device->refcount);
 	return 1;
 }
 
@@ -337,7 +341,7 @@ struct udev *udev_new(void) {
 	return NULL;
 }
 
-struct udev_enumerate *udev_enumerate_new(struct udev *udev) {
+struct udev_enumerate *udev_enumerate_new(struct udev *udev __unused) {
 	fprintf(stderr, "udev_enumerate_new\n");
 	struct udev_enumerate *u = calloc(1, sizeof(struct udev_enumerate));
 	if (u) {
@@ -407,8 +411,9 @@ struct udev_list_entry *udev_enumerate_get_list_entry(
 }
 
 int udev_enumerate_add_match_sysname(
-    struct udev_enumerate *udev_enumerate, const char *sysname) {
-	fprintf(stderr, "stub: udev_enumerate_add_match_sysname\n");
+    struct udev_enumerate *udev_enumerate __unused, const char *sysname) {
+	fprintf(
+	    stderr, "stub: udev_enumerate_add_match_sysname %s\n", sysname);
 	return -1;
 }
 
@@ -438,7 +443,7 @@ void udev_enumerate_unref(struct udev_enumerate *udev_enumerate) {
 
 struct udev_monitor *udev_monitor_new_from_netlink(
     struct udev *udev, const char *name) {
-	fprintf(stderr, "udev_monitor_new_from_netlink %p\n", udev);
+	fprintf(stderr, "udev_monitor_new_from_netlink %p\n", (void *)udev);
 
 	if (name == NULL || strcmp(name, "udev") != 0) {
 		return NULL;
@@ -483,11 +488,10 @@ static void *devd_listener(void *arg) {
 	struct udev_monitor *udev_monitor = (struct udev_monitor *)arg;
 
 	for (;;) {
-		int cmp;
 		ssize_t len;
 		char event[1024];
 
-		struct pollfd pfd = {udev_monitor->devd_socket, POLLIN};
+		struct pollfd pfd = {udev_monitor->devd_socket, POLLIN, 0};
 		int ret = poll(&pfd, 1, INFTIM);
 		if (ret <= 0 || !(pfd.revents & POLLIN)) {
 			return NULL;
@@ -547,7 +551,7 @@ int udev_monitor_enable_receiving(struct udev_monitor *udev_monitor) {
 		return -1;
 	}
 	int error = connect(udev_monitor->devd_socket,
-	    (struct sockaddr *)&devd_addr, SUN_LEN(&devd_addr));
+	    (struct sockaddr *)&devd_addr, (socklen_t)SUN_LEN(&devd_addr));
 	if (error == -1) {
 		perror("connect");
 		close(udev_monitor->devd_socket);
