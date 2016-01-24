@@ -399,10 +399,21 @@ struct udev_list_entry *udev_enumerate_get_list_entry(
   return udev_enumerate->dev_list;
 }
 
+int udev_enumerate_add_match_sysname(
+    struct udev_enumerate *udev_enumerate, const char *sysname) {
+  fprintf(stderr, "stub: udev_enumerate_add_match_sysname\n");
+  return -1;
+}
+
 const char *udev_list_entry_get_name(
     struct udev_list_entry *list_entry) {
   fprintf(stderr, "udev_list_entry_get_name\n");
   return list_entry->name;
+}
+
+const char *udev_list_entry_get_value(struct udev_list_entry *list_entry) {
+  fprintf(stderr, "udev_list_entry_get_name\n");
+  return list_entry->has_value ? list_entry->value : NULL;
 }
 
 struct udev_list_entry *udev_list_entry_get_next(
@@ -550,6 +561,11 @@ int udev_monitor_enable_receiving(struct udev_monitor *udev_monitor) {
 int udev_monitor_get_fd(struct udev_monitor *udev_monitor) {
   fprintf(stderr, "udev_monitor_get_fd\n");
   return udev_monitor->pipe_fds[0];
+}
+
+struct udev *udev_monitor_get_udev(struct udev_monitor *udev_monitor) {
+  fprintf(stderr, "udev_monitor_get_udev\n");
+  return udev_monitor->udev;
 }
 
 struct udev_device *udev_monitor_receive_device(
