@@ -11,27 +11,25 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-
 struct udev_device;
 struct udev;
 struct udev_list_entry;
 struct udev_monitor;
 struct udev_enumerate;
 
-
 #define udev_list_entry_foreach(list_entry, first_entry)                      \
-  for (list_entry = first_entry; list_entry; list_entry = udev_list_entry_get_next(list_entry))
-
+	for (list_entry = first_entry; list_entry;                            \
+	     list_entry = udev_list_entry_get_next(list_entry))
 
 char const *udev_device_get_devnode(struct udev_device *udev_device);
 dev_t udev_device_get_devnum(struct udev_device *udev_device);
-char const *udev_device_get_property_value(struct udev_device *dummy __unused, char const *property);
+char const *udev_device_get_property_value(
+    struct udev_device *dummy __unused, char const *property);
 struct udev *udev_device_get_udev(struct udev_device *dummy __unused);
-struct udev_device *udev_device_new_from_syspath(struct udev *udev,
-                                                        const char *syspath);
-struct udev_device *udev_device_new_from_devnum(struct udev *udev,
-                                                       char type,
-                                                       dev_t devnum);
+struct udev_device *udev_device_new_from_syspath(
+    struct udev *udev, const char *syspath);
+struct udev_device *udev_device_new_from_devnum(
+    struct udev *udev, char type, dev_t devnum);
 
 struct udev *udev_new(void);
 void udev_unref(struct udev *udev);
@@ -59,14 +57,13 @@ int udev_enumerate_add_match_sysname(
 
 void udev_enumerate_unref(struct udev_enumerate *udev_enumerate);
 
-const char *udev_list_entry_get_name(
-    struct udev_list_entry *list_entry);
+const char *udev_list_entry_get_name(struct udev_list_entry *list_entry);
 const char *udev_list_entry_get_value(struct udev_list_entry *list_entry);
 struct udev_list_entry *udev_list_entry_get_next(
     struct udev_list_entry *list_entry);
 
-struct udev_monitor *udev_monitor_new_from_netlink(struct udev *udev,
-                                                          const char *name);
+struct udev_monitor *udev_monitor_new_from_netlink(
+    struct udev *udev, const char *name);
 int udev_monitor_filter_add_match_subsystem_devtype(
     struct udev_monitor *udev_monitor, const char *subsystem,
     const char *devtype);
