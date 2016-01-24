@@ -208,8 +208,13 @@ struct udev_enumerate *udev_enumerate_new(struct udev *udev) {
 LIBINPUT_EXPORT
 int udev_enumerate_add_match_subsystem(
     struct udev_enumerate *udev_enumerate, const char *subsystem) {
-  fprintf(stderr, "stub: udev_enumerate_add_match_subsystem\n");
-  return 0;
+  fprintf(stderr, "udev_enumerate_add_match_subsystem\n");
+  if (strcmp(subsystem, "input") != 0) {
+    return -1;
+  } else {
+    udev_enumerate->scan_for_input = 1;
+    return 0;
+  }
 }
 
 static struct udev_list_entry *create_list_entry(char const *path) {
@@ -235,6 +240,10 @@ void free_dev_list(struct udev_list_entry **list) {
 LIBINPUT_EXPORT
 int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate) {
   fprintf(stderr, "udev_enumerate_scan_devices\n");
+
+  if (!udev_enumerate->scan_for_input) {
+    return 0;
+  }
 
   char path[32];
 

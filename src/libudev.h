@@ -29,6 +29,7 @@ struct udev_monitor {
 };
 struct udev_enumerate {
   int refcount;
+  int scan_for_input;
   struct udev_list_entry *dev_list;
 };
 
