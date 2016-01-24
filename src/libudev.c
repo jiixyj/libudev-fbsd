@@ -275,7 +275,7 @@ int udev_enumerate_scan_devices(struct udev_enumerate *udev_enumerate) {
       list_end = &((*list_end)->next);
     }
 
-    (*list_end)->next = le;
+    *list_end = le;
   }
 
   return 0;
