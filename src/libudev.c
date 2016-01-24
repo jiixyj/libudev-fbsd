@@ -131,7 +131,7 @@ const char *udev_device_get_syspath(struct udev_device *udev_device) {
 
 LIBINPUT_EXPORT
 const char *udev_device_get_sysname(struct udev_device *udev_device) {
-  fprintf(stderr, "stub: udev_device_get_sysname\n");
+  fprintf(stderr, "udev_device_get_sysname\n");
   return udev_device->sysname;
 }
 
