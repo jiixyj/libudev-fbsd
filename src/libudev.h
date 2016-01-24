@@ -1,5 +1,5 @@
-#ifndef UDEV_STUBS_H_
-#define UDEV_STUBS_H_
+#ifndef LIBUDEV_FBSD_H_
+#define LIBUDEV_FBSD_H_
 
 #include <sys/stat.h>
 #include <sys/types.h>
