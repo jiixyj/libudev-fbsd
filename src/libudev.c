@@ -15,7 +15,7 @@ struct udev_device *udev_device_new_from_devnum(struct udev *udev, char type,
   char path[32];
   struct stat st;
 
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 100; ++i) {
     snprintf(path, sizeof(path), "/dev/input/event%d", i);
 
     fprintf(stderr, "path: %s\n", path);
