@@ -541,13 +541,20 @@ int udev_monitor_filter_add_match_subsystem_devtype(
 static void *devd_listener(void *arg) {
 	struct udev_monitor *udev_monitor = (struct udev_monitor *)arg;
 
+	LOG("udev_devd_listener start\n");
+
 	for (;;) {
 		ssize_t len;
 		char event[1024];
 
 		struct pollfd pfd = {udev_monitor->devd_socket, POLLIN, 0};
-		int ret = poll(&pfd, 1, INFTIM);
+		int ret;
+		do {
+			ret = poll(&pfd, 1, INFTIM);
+		} while (ret == -1 && errno == EINTR);
 		if (ret <= 0 || !(pfd.revents & POLLIN)) {
+			LOG("udev_devd_listener return poll error\n");
+			perror("poll");
 			return NULL;
 		}
 
@@ -557,6 +564,7 @@ static void *devd_listener(void *arg) {
 			perror("recv");
 			return (void *)1;
 		}
+		LOG("udev_devd_listener event: %s\n", event);
 
 		if (!udev_monitor->scan_for_input) {
 			continue;
@@ -582,6 +590,8 @@ static void *devd_listener(void *arg) {
 		} else {
 			continue;
 		}
+
+		LOG("udev_devd_listener write: %s\n", msg);
 
 		write(udev_monitor->pipe_fds[1], msg, 32);
 	}
@@ -624,7 +634,7 @@ int udev_monitor_enable_receiving(struct udev_monitor *udev_monitor) {
 }
 
 int udev_monitor_get_fd(struct udev_monitor *udev_monitor) {
-	LOG("udev_monitor_get_fd\n");
+	// LOG("udev_monitor_get_fd\n");
 	return udev_monitor->pipe_fds[0];
 }
 
@@ -642,6 +652,8 @@ struct udev_device *udev_monitor_receive_device(
 		return NULL;
 	}
 
+	LOG("udev_monitor_receive_device msg: %s\n", msg);
+
 	char path[32];
 	snprintf(path, sizeof(path), "/dev/%s", &msg[1]);
 
@@ -654,8 +666,10 @@ struct udev_device *udev_monitor_receive_device(
 
 	if (msg[0] == '+') {
 		udev_device->action = "add";
+		LOG("udev_monitor_receive_device add %s\n", path);
 	} else if (msg[0] == '-') {
 		udev_device->action = "remove";
+		LOG("udev_monitor_receive_device remove %s\n", path);
 	}
 
 	return udev_device;
