@@ -239,17 +239,19 @@ out:
 	return ret;
 }
 
-struct udev_device *udev_device_new_from_syspath(
-    struct udev *udev, const char *syspath) {
+static struct udev_device *udev_device_new_from_syspath_impl(
+    struct udev *udev, const char *syspath, bool do_open) {
 	LOG("udev_device_new_from_syspath %s\n", syspath);
 	struct udev_device *u = calloc(1, sizeof(struct udev_device));
 	if (u) {
-		struct stat st;
-		if (stat(syspath, &st) == 0) {
-			u->devnum = st.st_rdev;
-		} else {
-			free(u);
-			return NULL;
+		if (do_open) {
+			struct stat st;
+			if (stat(syspath, &st) == 0) {
+				u->devnum = st.st_rdev;
+			} else {
+				free(u);
+				return NULL;
+			}
 		}
 
 		// TODO: increase refcount?
@@ -259,7 +261,7 @@ struct udev_device *udev_device_new_from_syspath(
 		u->sysname = (char const *)u->syspath + 11;
 		u->subsystem = "input";
 
-		if (populate_properties_list(u) == -1) {
+		if (do_open && populate_properties_list(u) == -1) {
 			udev_device_unref(u);
 			return NULL;
 		}
@@ -267,6 +269,11 @@ struct udev_device *udev_device_new_from_syspath(
 		return u;
 	}
 	return NULL;
+}
+
+struct udev_device *udev_device_new_from_syspath(
+    struct udev *udev, const char *syspath) {
+	return udev_device_new_from_syspath_impl(udev, syspath, true);
 }
 
 const char *udev_device_get_syspath(struct udev_device *udev_device) {
@@ -657,17 +664,26 @@ struct udev_device *udev_monitor_receive_device(
 	char path[32];
 	snprintf(path, sizeof(path), "/dev/%s", &msg[1]);
 
-	struct udev_device *udev_device =
-	    udev_device_new_from_syspath(udev_monitor->udev, path);
-
-	if (!udev_device) {
-		return NULL;
-	}
+	struct udev_device *udev_device = NULL;
 
 	if (msg[0] == '+') {
+		udev_device =
+		    udev_device_new_from_syspath(udev_monitor->udev, path);
+
+		if (!udev_device) {
+			return NULL;
+		}
+
 		udev_device->action = "add";
 		LOG("udev_monitor_receive_device add %s\n", path);
 	} else if (msg[0] == '-') {
+		udev_device = udev_device_new_from_syspath_impl(
+		    udev_monitor->udev, path, false);
+
+		if (!udev_device) {
+			return NULL;
+		}
+
 		udev_device->action = "remove";
 		LOG("udev_monitor_receive_device remove %s\n", path);
 	}
