@@ -560,15 +560,18 @@ static void *devd_listener(void *arg) {
 			ret = poll(&pfd, 1, INFTIM);
 		} while (ret == -1 && errno == EINTR);
 		if (ret <= 0 || !(pfd.revents & POLLIN)) {
-			LOG("udev_devd_listener return poll error\n");
-			perror("poll");
+			int err = errno;
+			LOG("udev_devd_listener return poll error %d: %s\n",
+			    err, strerror(err));
 			return NULL;
 		}
 
 		len = recv(udev_monitor->devd_socket, event, sizeof(event) - 1,
 		    MSG_WAITALL);
 		if (len == -1) {
-			perror("recv");
+			int err = errno;
+			LOG("udev_devd_listener recv error %d: %s", err,
+			    strerror(err));
 			return (void *)1;
 		}
 		LOG("udev_devd_listener event: %s\n", event);
@@ -618,13 +621,17 @@ int udev_monitor_enable_receiving(struct udev_monitor *udev_monitor) {
 
 	udev_monitor->devd_socket = socket(PF_LOCAL, SOCK_SEQPACKET, 0);
 	if (udev_monitor->devd_socket == -1) {
-		perror("socket");
+		int err = errno;
+		LOG("udev_monitor_enable_receiving socket error %d: %s", err,
+		    strerror(err));
 		return -1;
 	}
 	int error = connect(udev_monitor->devd_socket,
 	    (struct sockaddr *)&devd_addr, (socklen_t)SUN_LEN(&devd_addr));
 	if (error == -1) {
-		perror("connect");
+		int err = errno;
+		LOG("udev_monitor_enable_receiving connect error %d: %s", err,
+		    strerror(err));
 		close(udev_monitor->devd_socket);
 		udev_monitor->devd_socket = -1;
 		return -1;
