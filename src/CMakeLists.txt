@@ -3,6 +3,9 @@ find_pkg_config(LIBEVDEV libevdev REQUIRED)
 add_library(udev SHARED libudev)
 target_include_directories(udev SYSTEM PRIVATE ${LIBEVDEV_INCLUDE_DIRS})
 target_include_directories(udev SYSTEM PRIVATE ${LINUX_INCLUDE_DIR})
+target_link_libraries(udev PRIVATE ${LIBEVDEV_LIBRARIES})
+
+set_target_properties(udev PROPERTIES SOVERSION 1)
 
 install(TARGETS udev LIBRARY DESTINATION lib)
 install(FILES libudev.h DESTINATION include)
