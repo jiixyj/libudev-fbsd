@@ -140,7 +140,7 @@ static int populate_properties_list(struct udev_device *udev_device) {
 	int ret = 0;
 
 	char const *ids[] = {"ID_INPUT", "ID_INPUT_TOUCHPAD", "ID_INPUT_MOUSE",
-	    "ID_INPUT_KEYBOARD"};
+	    "ID_INPUT_KEYBOARD", "ID_INPUT_JOYSTICK"};
 
 	int fd = open(udev_device->syspath, O_RDONLY | O_NONBLOCK);
 	if (fd == -1) {
@@ -162,7 +162,7 @@ static int populate_properties_list(struct udev_device *udev_device) {
 		struct udev_list_entry *le;
 
 		if (strcmp(id, "ID_INPUT") == 0) {
-			le = create_list_entry_name_value(id, NULL);
+			le = create_list_entry_name_value(id, "1");
 		} else if (strcmp(id, "ID_INPUT_TOUCHPAD") == 0) {
 			if (libevdev_has_event_code(evdev, EV_ABS, ABS_X) &&
 			    libevdev_has_event_code(evdev, EV_ABS, ABS_Y) &&
@@ -172,7 +172,7 @@ static int populate_properties_list(struct udev_device *udev_device) {
 				evdev, EV_KEY, BTN_STYLUS) &&
 			    !libevdev_has_event_code(
 				evdev, EV_KEY, BTN_TOOL_PEN)) {
-				le = create_list_entry_name_value(id, NULL);
+				le = create_list_entry_name_value(id, "1");
 			} else {
 				continue;
 			}
@@ -197,7 +197,7 @@ static int populate_properties_list(struct udev_device *udev_device) {
 				is_mouse = 1;
 			}
 			if (is_mouse) {
-				le = create_list_entry_name_value(id, NULL);
+				le = create_list_entry_name_value(id, "1");
 			} else {
 				continue;
 			}
@@ -211,7 +211,41 @@ static int populate_properties_list(struct udev_device *udev_device) {
 				}
 			}
 			if (is_keyboard) {
-				le = create_list_entry_name_value(id, NULL);
+				le = create_list_entry_name_value(id, "1");
+			} else {
+				continue;
+			}
+		} else if (strcmp(id, "ID_INPUT_JOYSTICK") == 0) {
+			// TODO: implement udev logic more faithfully
+			bool is_joystick = false;
+			if (libevdev_has_event_code(evdev, EV_ABS, ABS_X) &&
+			    libevdev_has_event_code(evdev, EV_ABS, ABS_Y) &&
+			    (libevdev_has_event_code(
+				 evdev, EV_KEY, BTN_TRIGGER) ||
+				libevdev_has_event_code(
+				    evdev, EV_KEY, BTN_A) ||
+				libevdev_has_event_code(
+				    evdev, EV_KEY, BTN_1) ||
+				libevdev_has_event_code(
+				    evdev, EV_ABS, ABS_RX) ||
+				libevdev_has_event_code(
+				    evdev, EV_ABS, ABS_RY) ||
+				libevdev_has_event_code(
+				    evdev, EV_ABS, ABS_RZ) ||
+				libevdev_has_event_code(
+				    evdev, EV_ABS, ABS_THROTTLE) ||
+				libevdev_has_event_code(
+				    evdev, EV_ABS, ABS_RUDDER) ||
+				libevdev_has_event_code(
+				    evdev, EV_ABS, ABS_WHEEL) ||
+				libevdev_has_event_code(
+				    evdev, EV_ABS, ABS_GAS) ||
+				libevdev_has_event_code(
+				    evdev, EV_ABS, ABS_BRAKE))) {
+				is_joystick = true;
+			}
+			if (is_joystick) {
+				le = create_list_entry_name_value(id, "1");
 			} else {
 				continue;
 			}
