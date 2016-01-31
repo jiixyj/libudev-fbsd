@@ -42,6 +42,9 @@ void udev_device_unref(struct udev_device *udev_device);
 struct udev_device *udev_device_get_parent(struct udev_device *udev_device);
 int udev_device_get_is_initialized(struct udev_device *udev_device);
 char const *udev_device_get_action(struct udev_device *udev_device);
+struct udev_device *udev_device_get_parent_with_subsystem_devtype(
+    struct udev_device *udev_device, char const *subsystem,
+    char const *devtype);
 
 struct udev_enumerate *udev_enumerate_new(struct udev *udev);
 int udev_enumerate_add_match_subsystem(
@@ -51,6 +54,8 @@ struct udev_list_entry *udev_enumerate_get_list_entry(
     struct udev_enumerate *udev_enumerate);
 int udev_enumerate_add_match_sysname(
     struct udev_enumerate *udev_enumerate, char const *sysname);
+int udev_enumerate_add_match_property(struct udev_enumerate *udev_enumerate,
+    char const *property, char const *value);
 void udev_enumerate_unref(struct udev_enumerate *udev_enumerate);
 
 #define udev_list_entry_foreach(list_entry, first_entry)                      \

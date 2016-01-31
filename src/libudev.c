@@ -382,6 +382,17 @@ const char *udev_device_get_action(struct udev_device *udev_device) {
 	return udev_device->action;
 }
 
+struct udev_device *udev_device_get_parent_with_subsystem_devtype(
+    struct udev_device *udev_device, char const *subsystem,
+    char const *devtype) {
+	(void)udev_device;
+	(void)subsystem;
+	(void)devtype;
+	LOG("stub: udev_device_get_parent_with_subsystem_devtype %s %s\n",
+	    subsystem, devtype);
+	return NULL;
+}
+
 struct udev_enumerate *udev_enumerate_new(struct udev *udev __unused) {
 	LOG("udev_enumerate_new\n");
 	struct udev_enumerate *u = calloc(1, sizeof(struct udev_enumerate));
@@ -447,6 +458,16 @@ int udev_enumerate_add_match_sysname(
     struct udev_enumerate *udev_enumerate __unused, const char *sysname) {
 	(void)sysname;
 	LOG("stub: udev_enumerate_add_match_sysname %s\n", sysname);
+	return -1;
+}
+
+int udev_enumerate_add_match_property(struct udev_enumerate *udev_enumerate,
+    char const *property, char const *value) {
+	(void)udev_enumerate;
+	(void)property;
+	(void)value;
+	LOG("stub: udev_enumerate_add_match_property %s %s\n", property,
+	    value);
 	return -1;
 }
 
@@ -563,6 +584,7 @@ static void *devd_listener(void *arg) {
 			int err = errno;
 			LOG("udev_devd_listener return poll error %d: %s\n",
 			    err, strerror(err));
+			(void)err;
 			return NULL;
 		}
 
@@ -572,6 +594,7 @@ static void *devd_listener(void *arg) {
 			int err = errno;
 			LOG("udev_devd_listener recv error %d: %s", err,
 			    strerror(err));
+			(void)err;
 			return (void *)1;
 		}
 		LOG("udev_devd_listener event: %s\n", event);
@@ -624,6 +647,7 @@ int udev_monitor_enable_receiving(struct udev_monitor *udev_monitor) {
 		int err = errno;
 		LOG("udev_monitor_enable_receiving socket error %d: %s", err,
 		    strerror(err));
+		(void)err;
 		return -1;
 	}
 	int error = connect(udev_monitor->devd_socket,
@@ -632,6 +656,7 @@ int udev_monitor_enable_receiving(struct udev_monitor *udev_monitor) {
 		int err = errno;
 		LOG("udev_monitor_enable_receiving connect error %d: %s", err,
 		    strerror(err));
+		(void)err;
 		close(udev_monitor->devd_socket);
 		udev_monitor->devd_socket = -1;
 		return -1;
