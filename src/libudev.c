@@ -609,12 +609,14 @@ static void *devd_listener(void *arg) {
 		ssize_t len;
 		char event[1024];
 
-		struct pollfd pfd = {udev_monitor->devd_socket, POLLIN, 0};
+		struct pollfd pfd[2] = {{udev_monitor->devd_socket, POLLIN, 0},
+		    {udev_monitor->pipe_fds[1], POLLIN, 0}};
 		int ret;
 		do {
-			ret = poll(&pfd, 1, INFTIM);
+			ret = poll(pfd, 2, INFTIM);
 		} while (ret == -1 && errno == EINTR);
-		if (ret <= 0 || !(pfd.revents & POLLIN)) {
+
+		if (ret <= 0 || !(pfd[0].revents & POLLIN)) {
 			int err = errno;
 			LOG("udev_devd_listener return poll error %d: %s\n",
 			    err, strerror(err));
@@ -762,8 +764,9 @@ void udev_monitor_unref(struct udev_monitor *udev_monitor) {
 	--udev_monitor->refcount;
 	if (udev_monitor->refcount == 0) {
 		if (udev_monitor->devd_socket != -1) {
-			close(udev_monitor->devd_socket);
+			write(udev_monitor->pipe_fds[0], "", 1);
 			pthread_join(udev_monitor->devd_thread, NULL);
+			close(udev_monitor->devd_socket);
 			udev_monitor->devd_socket = -1;
 		}
 		close(udev_monitor->pipe_fds[0]);
