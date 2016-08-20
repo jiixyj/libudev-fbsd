@@ -13,7 +13,7 @@
 
 #include <libevdev/libevdev.h>
 
-#if 0
+#if 1
 #define LOG(...) fprintf(stderr, __VA_ARGS__)
 #else
 #define LOG(...)
@@ -46,6 +46,7 @@ struct udev_monitor {
 	int pipe_fds[2];
 	pthread_t devd_thread;
 	int devd_socket;
+	int is_receiving;
 };
 struct udev_enumerate {
 	int refcount;
@@ -578,6 +579,7 @@ struct udev_monitor *udev_monitor_new_from_netlink(
 	// TODO: increase refcount?
 	u->udev = udev;
 	u->devd_socket = -1;
+	u->is_receiving = 0;
 	u->refcount = 1;
 
 	return u;
@@ -605,18 +607,51 @@ static void *devd_listener(void *arg) {
 
 	LOG("udev_devd_listener start\n");
 
+	struct sockaddr_un devd_addr;
+
+	memset(&devd_addr, 0, sizeof(devd_addr));
+	devd_addr.sun_family = PF_LOCAL;
+	strlcpy(devd_addr.sun_path, "/var/run/devd.seqpacket.pipe",
+	    sizeof(devd_addr.sun_path));
+
 	for (;;) {
 		ssize_t len;
 		char event[1024];
+
+		if (udev_monitor->devd_socket == -1) {
+			udev_monitor->devd_socket =
+			    socket(PF_LOCAL, SOCK_SEQPACKET, 0);
+			if (udev_monitor->devd_socket == -1) {
+				int err = errno;
+				LOG("udev_monitor_enable_receiving socket "
+				    "error %d: %s",
+				    err, strerror(err));
+				return (void *)1;
+			}
+
+			int error = connect(udev_monitor->devd_socket,
+			    (struct sockaddr *)&devd_addr,
+			    (socklen_t)SUN_LEN(&devd_addr));
+			if (error == -1) {
+				int err = errno;
+				close(udev_monitor->devd_socket);
+				udev_monitor->devd_socket = -1;
+				LOG("udev_monitor_enable_receiving connect "
+				    "error %d: %s\n",
+				    err, strerror(err));
+			}
+		}
 
 		struct pollfd pfd[2] = {{udev_monitor->devd_socket, POLLIN, 0},
 		    {udev_monitor->pipe_fds[1], POLLIN, 0}};
 		int ret;
 		do {
-			ret = poll(pfd, 2, INFTIM);
+			ret = poll(pfd, 2, 1000);
 		} while (ret == -1 && errno == EINTR);
 
-		if (ret <= 0 || !(pfd[0].revents & POLLIN)) {
+		if (ret == 0) {
+			continue;
+		} else if (ret == -1 || !(pfd[0].revents & POLLIN)) {
 			int err = errno;
 			LOG("udev_devd_listener return poll error %d: %s\n",
 			    err, strerror(err));
@@ -630,10 +665,14 @@ static void *devd_listener(void *arg) {
 			int err = errno;
 			LOG("udev_devd_listener recv error %d: %s", err,
 			    strerror(err));
-			(void)err;
 			return (void *)1;
+		} else if (len == 0) {
+			LOG("udev_devd_listener socket EOF\n");
+			close(udev_monitor->devd_socket);
+			udev_monitor->devd_socket = -1;
+			continue;
 		}
-		LOG("udev_devd_listener event: %s\n", event);
+		LOG("udev_devd_listener event: %s len: %d\n", event, (int)len);
 
 		if (!udev_monitor->scan_for_input) {
 			continue;
@@ -671,39 +710,13 @@ static void *devd_listener(void *arg) {
 int udev_monitor_enable_receiving(struct udev_monitor *udev_monitor) {
 	LOG("udev_monitor_enable_receiving\n");
 
-	struct sockaddr_un devd_addr;
-
-	memset(&devd_addr, 0, sizeof(devd_addr));
-	devd_addr.sun_family = PF_LOCAL;
-	strlcpy(devd_addr.sun_path, "/var/run/devd.seqpacket.pipe",
-	    sizeof(devd_addr.sun_path));
-
-	udev_monitor->devd_socket = socket(PF_LOCAL, SOCK_SEQPACKET, 0);
-	if (udev_monitor->devd_socket == -1) {
-		int err = errno;
-		LOG("udev_monitor_enable_receiving socket error %d: %s", err,
-		    strerror(err));
-		(void)err;
-		return -1;
-	}
-	int error = connect(udev_monitor->devd_socket,
-	    (struct sockaddr *)&devd_addr, (socklen_t)SUN_LEN(&devd_addr));
-	if (error == -1) {
-		int err = errno;
-		LOG("udev_monitor_enable_receiving connect error %d: %s", err,
-		    strerror(err));
-		(void)err;
-		close(udev_monitor->devd_socket);
-		udev_monitor->devd_socket = -1;
-		return -1;
-	}
+	udev_monitor->is_receiving = 1;
 
 	if (pthread_create(&udev_monitor->devd_thread, NULL, devd_listener,
 		udev_monitor) == 0) {
 		return 0;
 	} else {
-		close(udev_monitor->devd_socket);
-		udev_monitor->devd_socket = -1;
+		udev_monitor->is_receiving = 0;
 		return -1;
 	}
 }
@@ -763,11 +776,13 @@ void udev_monitor_unref(struct udev_monitor *udev_monitor) {
 	LOG("udev_monitor_unref\n");
 	--udev_monitor->refcount;
 	if (udev_monitor->refcount == 0) {
-		if (udev_monitor->devd_socket != -1) {
+		if (udev_monitor->is_receiving) {
 			write(udev_monitor->pipe_fds[0], "", 1);
 			pthread_join(udev_monitor->devd_thread, NULL);
-			close(udev_monitor->devd_socket);
-			udev_monitor->devd_socket = -1;
+			if (udev_monitor->devd_socket != -1) {
+				close(udev_monitor->devd_socket);
+				udev_monitor->devd_socket = -1;
+			}
 		}
 		close(udev_monitor->pipe_fds[0]);
 		close(udev_monitor->pipe_fds[1]);
