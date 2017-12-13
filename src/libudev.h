@@ -11,6 +11,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct udev;
 struct udev_device;
 struct udev_list_entry;
@@ -77,5 +82,9 @@ struct udev *udev_monitor_get_udev(struct udev_monitor *udev_monitor);
 struct udev_device *udev_monitor_receive_device(
     struct udev_monitor *udev_monitor);
 void udev_monitor_unref(struct udev_monitor *udev_monitor);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif
