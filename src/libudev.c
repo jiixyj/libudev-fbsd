@@ -170,7 +170,7 @@ populate_properties_list(struct udev_device *udev_device)
 	    "ID_INPUT_KEYBOARD", "ID_INPUT_JOYSTICK"};
 
 	int fd = open(udev_device->syspath, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-	if (fd == -1) {
+	if (fd < 0) {
 		return -1;
 	}
 
@@ -324,7 +324,7 @@ udev_device_new_from_syspath_impl(
 		u->sysname = (char const *)u->syspath + 11;
 		u->subsystem = "input";
 
-		if (do_open && populate_properties_list(u) == -1) {
+		if (do_open && populate_properties_list(u) < 0) {
 			udev_device_unref(u);
 			return NULL;
 		}
@@ -419,7 +419,7 @@ udev_device_get_parent(struct udev_device *udev_device)
 	}
 
 	int fd = open(udev_device->syspath, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-	if (fd == -1) {
+	if (fd < 0) {
 		goto free_parent;
 	}
 
@@ -650,7 +650,7 @@ udev_monitor_new_from_netlink(struct udev *udev, const char *name)
 		return NULL;
 	}
 
-	if (pipe2(u->pipe_fds, O_CLOEXEC) == -1) {
+	if (pipe2(u->pipe_fds, O_CLOEXEC) < 0) {
 		free(u);
 		return NULL;
 	}
@@ -701,10 +701,10 @@ devd_listener(void *arg)
 		ssize_t len;
 		char event[1024];
 
-		if (udev_monitor->devd_socket == -1) {
+		if (udev_monitor->devd_socket < 0) {
 			udev_monitor->devd_socket =
 			    socket(PF_LOCAL, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
-			if (udev_monitor->devd_socket == -1) {
+			if (udev_monitor->devd_socket < 0) {
 #ifdef LOGGING_ENABLED
 				int err = errno;
 #endif
@@ -717,7 +717,7 @@ devd_listener(void *arg)
 			int error = connect(udev_monitor->devd_socket,
 			    (struct sockaddr *)&devd_addr,
 			    (socklen_t)SUN_LEN(&devd_addr));
-			if (error == -1) {
+			if (error < 0) {
 #ifdef LOGGING_ENABLED
 				int err = errno;
 #endif
@@ -734,13 +734,13 @@ devd_listener(void *arg)
 		int ret;
 		do {
 			ret = poll(pfd, 2, 1000);
-		} while (ret == -1 && errno == EINTR);
+		} while (ret < 0 && errno == EINTR);
 
 		if (ret == 0) {
 			continue;
 		}
 
-		if (ret == -1 || !(pfd[0].revents & POLLIN)) {
+		if (ret < 0 || !(pfd[0].revents & POLLIN)) {
 			int err = errno;
 			LOG("udev_devd_listener return poll error %d: %s\n",
 			    err, strerror(err));
@@ -882,7 +882,7 @@ udev_monitor_unref(struct udev_monitor *udev_monitor)
 		if (udev_monitor->is_receiving) {
 			write(udev_monitor->pipe_fds[0], "", 1);
 			pthread_join(udev_monitor->devd_thread, NULL);
-			if (udev_monitor->devd_socket != -1) {
+			if (udev_monitor->devd_socket >= 0) {
 				close(udev_monitor->devd_socket);
 				udev_monitor->devd_socket = -1;
 			}
