@@ -24,8 +24,8 @@ void udev_unref(struct udev *udev);
 char const *udev_device_get_devnode(struct udev_device *udev_device);
 dev_t udev_device_get_devnum(struct udev_device *udev_device);
 char const *udev_device_get_property_value(
-    struct udev_device *dummy __unused, char const *property);
-struct udev *udev_device_get_udev(struct udev_device *dummy __unused);
+    struct udev_device *dummy, char const *property);
+struct udev *udev_device_get_udev(struct udev_device *dummy);
 struct udev_device *udev_device_new_from_syspath(
     struct udev *udev, char const *syspath);
 struct udev_device *udev_device_new_from_devnum(

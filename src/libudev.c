@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "libudev.h"
 
 #include <sys/param.h>
@@ -11,9 +13,13 @@
 #include <poll.h>
 #include <pthread.h>
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <libevdev/libevdev.h>
 
-#if 1
+#if 0
+#define LOGGING_ENABLED
 #define LOG(...) fprintf(stderr, __VA_ARGS__)
 #else
 #define LOG(...)
@@ -175,7 +181,7 @@ populate_properties_list(struct udev_device *udev_device)
 
 	struct udev_list_entry **list_end = &udev_device->properties_list;
 
-	for (unsigned i = 0; i < nitems(ids); ++i) {
+	for (unsigned i = 0; i < (sizeof((ids)) / sizeof((ids)[0])); ++i) {
 		char const *id = ids[i];
 		struct udev_list_entry *le;
 
@@ -354,8 +360,9 @@ udev_device_get_subsystem(struct udev_device *udev_device)
 
 const char *
 udev_device_get_sysattr_value(
-    struct udev_device *udev_device __unused, const char *sysattr)
+    struct udev_device *udev_device, const char *sysattr)
 {
+	(void)udev_device;
 	(void)sysattr;
 	LOG("stub: udev_device_get_sysattr_value %s\n", sysattr);
 	return NULL;
@@ -469,8 +476,9 @@ udev_device_get_parent_with_subsystem_devtype(struct udev_device *udev_device,
 }
 
 struct udev_enumerate *
-udev_enumerate_new(struct udev *udev __unused)
+udev_enumerate_new(struct udev *udev)
 {
+	(void)udev;
 	LOG("udev_enumerate_new\n");
 	struct udev_enumerate *u = calloc(1, sizeof(struct udev_enumerate));
 	if (u) {
@@ -538,8 +546,9 @@ udev_enumerate_get_list_entry(struct udev_enumerate *udev_enumerate)
 
 int
 udev_enumerate_add_match_sysname(
-    struct udev_enumerate *udev_enumerate __unused, const char *sysname)
+    struct udev_enumerate *udev_enumerate, const char *sysname)
 {
+	(void)udev_enumerate;
 	(void)sysname;
 	LOG("stub: udev_enumerate_add_match_sysname %s\n", sysname);
 	return -1;
@@ -679,8 +688,8 @@ devd_listener(void *arg)
 
 	memset(&devd_addr, 0, sizeof(devd_addr));
 	devd_addr.sun_family = PF_LOCAL;
-	strlcpy(devd_addr.sun_path, "/var/run/devd.seqpacket.pipe",
-	    sizeof(devd_addr.sun_path));
+	snprintf(devd_addr.sun_path, sizeof(devd_addr.sun_path),
+	    "/var/run/devd.seqpacket.pipe");
 
 	for (;;) {
 		ssize_t len;
@@ -690,7 +699,9 @@ devd_listener(void *arg)
 			udev_monitor->devd_socket =
 			    socket(PF_LOCAL, SOCK_SEQPACKET, 0);
 			if (udev_monitor->devd_socket == -1) {
+#ifdef LOGGING_ENABLED
 				int err = errno;
+#endif
 				LOG("udev_monitor_enable_receiving socket "
 				    "error %d: %s",
 				    err, strerror(err));
@@ -701,7 +712,9 @@ devd_listener(void *arg)
 			    (struct sockaddr *)&devd_addr,
 			    (socklen_t)SUN_LEN(&devd_addr));
 			if (error == -1) {
+#ifdef LOGGING_ENABLED
 				int err = errno;
+#endif
 				close(udev_monitor->devd_socket);
 				udev_monitor->devd_socket = -1;
 				LOG("udev_monitor_enable_receiving connect "
@@ -730,7 +743,9 @@ devd_listener(void *arg)
 		len = recv(udev_monitor->devd_socket, event, sizeof(event) - 1,
 		    MSG_WAITALL);
 		if (len == -1) {
+#ifdef LOGGING_ENABLED
 			int err = errno;
+#endif
 			LOG("udev_devd_listener recv error %d: %s", err,
 			    strerror(err));
 			return (void *)1;

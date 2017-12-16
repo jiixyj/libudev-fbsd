@@ -1,11 +1,26 @@
-find_pkg_config(LIBEVDEV libevdev REQUIRED)
+include(CheckIncludeFile)
+
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBEVDEV IMPORTED_TARGET libevdev REQUIRED)
+check_include_file("linux/input.h" HAVE_LINUX_INPUT_H)
+
 
 add_library(udev SHARED libudev)
-target_include_directories(udev SYSTEM PRIVATE ${LIBEVDEV_INCLUDE_DIRS})
-target_include_directories(udev SYSTEM PRIVATE ${LINUX_INCLUDE_DIR})
-target_link_libraries(udev PRIVATE ${LIBEVDEV_LIBRARIES})
+target_link_libraries(udev PRIVATE PkgConfig::LIBEVDEV)
+target_link_libraries(udev PRIVATE Threads::Threads)
+if(NOT HAVE_LINUX_INPUT_H)
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    message(WARNING "Running Linux, but linux/input.h not found. Are you sure this is correct?")
+  endif()
+  target_include_directories(udev SYSTEM PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+endif()
 
 set_target_properties(udev PROPERTIES SOVERSION 1)
+
+add_executable(udev-test udev_test)
+target_link_libraries(udev-test udev)
 
 install(TARGETS udev LIBRARY DESTINATION lib)
 install(FILES libudev.h DESTINATION include)
