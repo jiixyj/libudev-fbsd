@@ -169,7 +169,7 @@ populate_properties_list(struct udev_device *udev_device)
 	char const *ids[] = {"ID_INPUT", "ID_INPUT_TOUCHPAD", "ID_INPUT_MOUSE",
 	    "ID_INPUT_KEYBOARD", "ID_INPUT_JOYSTICK"};
 
-	int fd = open(udev_device->syspath, O_RDONLY | O_NONBLOCK);
+	int fd = open(udev_device->syspath, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
 	if (fd == -1) {
 		return -1;
 	}
@@ -243,7 +243,7 @@ populate_properties_list(struct udev_device *udev_device)
 				continue;
 			}
 		} else if (strcmp(id, "ID_INPUT_JOYSTICK") == 0) {
-			// TODO: implement udev logic more faithfully
+			// TODO(jan): implement udev logic more faithfully
 			bool is_joystick = false;
 			if (libevdev_has_event_code(evdev, EV_ABS, ABS_X) &&
 			    libevdev_has_event_code(evdev, EV_ABS, ABS_Y) &&
@@ -317,7 +317,7 @@ udev_device_new_from_syspath_impl(
 			}
 		}
 
-		// TODO: increase refcount?
+		// TODO(jan): increase refcount?
 		u->udev = udev;
 		u->refcount = 1;
 		snprintf(u->syspath, sizeof(u->syspath), "%s", syspath);
@@ -418,7 +418,7 @@ udev_device_get_parent(struct udev_device *udev_device)
 		return NULL;
 	}
 
-	int fd = open(udev_device->syspath, O_RDONLY | O_NONBLOCK);
+	int fd = open(udev_device->syspath, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
 	if (fd == -1) {
 		goto free_parent;
 	}
@@ -498,10 +498,10 @@ udev_enumerate_add_match_subsystem(
 	LOG("udev_enumerate_add_match_subsystem\n");
 	if (strcmp(subsystem, "input") != 0) {
 		return -1;
-	} else {
-		udev_enumerate->scan_for_input = 1;
-		return 0;
 	}
+
+	udev_enumerate->scan_for_input = 1;
+	return 0;
 }
 
 int
@@ -584,8 +584,9 @@ static struct udev_list_entry *
 create_list_entry_name_value(char const *name, char const *value)
 {
 	struct udev_list_entry *le = calloc(1, sizeof(struct udev_list_entry));
-	if (!le)
+	if (!le) {
 		return NULL;
+	}
 	snprintf(le->name, sizeof(le->name), "%s", name);
 	if (value) {
 		le->has_value = 1;
@@ -603,11 +604,13 @@ create_list_entry_name(char const *name)
 static void
 free_dev_list(struct udev_list_entry **list)
 {
-	if (!*list)
+	if (!*list) {
 		return;
+	}
 
-	if ((*list)->next)
+	if ((*list)->next) {
 		free_dev_list(&(*list)->next);
+	}
 
 	free(*list);
 	*list = NULL;
@@ -652,7 +655,7 @@ udev_monitor_new_from_netlink(struct udev *udev, const char *name)
 		return NULL;
 	}
 
-	// TODO: increase refcount?
+	// TODO(jan): increase refcount?
 	u->udev = udev;
 	u->devd_socket = -1;
 	u->is_receiving = 0;
@@ -674,10 +677,10 @@ udev_monitor_filter_add_match_subsystem_devtype(
 
 	if (subsystem == NULL || strcmp(subsystem, "input") != 0) {
 		return -1;
-	} else {
-		udev_monitor->scan_for_input = 1;
-		return 0;
 	}
+
+	udev_monitor->scan_for_input = 1;
+	return 0;
 }
 
 static void *
@@ -700,7 +703,7 @@ devd_listener(void *arg)
 
 		if (udev_monitor->devd_socket == -1) {
 			udev_monitor->devd_socket =
-			    socket(PF_LOCAL, SOCK_SEQPACKET, 0);
+			    socket(PF_LOCAL, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
 			if (udev_monitor->devd_socket == -1) {
 #ifdef LOGGING_ENABLED
 				int err = errno;
@@ -735,7 +738,9 @@ devd_listener(void *arg)
 
 		if (ret == 0) {
 			continue;
-		} else if (ret == -1 || !(pfd[0].revents & POLLIN)) {
+		}
+
+		if (ret == -1 || !(pfd[0].revents & POLLIN)) {
 			int err = errno;
 			LOG("udev_devd_listener return poll error %d: %s\n",
 			    err, strerror(err));
@@ -745,19 +750,22 @@ devd_listener(void *arg)
 
 		len = recv(udev_monitor->devd_socket, event, sizeof(event) - 1,
 		    MSG_WAITALL);
-		if (len == -1) {
+		if (len < 0) {
 #ifdef LOGGING_ENABLED
 			int err = errno;
 #endif
 			LOG("udev_devd_listener recv error %d: %s", err,
 			    strerror(err));
 			return (void *)1;
-		} else if (len == 0) {
+		}
+
+		if (len == 0) {
 			LOG("udev_devd_listener socket EOF\n");
 			close(udev_monitor->devd_socket);
 			udev_monitor->devd_socket = -1;
 			continue;
 		}
+
 		LOG("udev_devd_listener event: %s len: %d\n", event, (int)len);
 
 		if (!udev_monitor->scan_for_input) {
@@ -803,10 +811,10 @@ udev_monitor_enable_receiving(struct udev_monitor *udev_monitor)
 	if (pthread_create(&udev_monitor->devd_thread, NULL, devd_listener,
 		udev_monitor) == 0) {
 		return 0;
-	} else {
-		udev_monitor->is_receiving = 0;
-		return -1;
 	}
+
+	udev_monitor->is_receiving = 0;
+	return -1;
 }
 
 int
