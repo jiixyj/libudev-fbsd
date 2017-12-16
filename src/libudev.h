@@ -1,15 +1,7 @@
 #ifndef LIBUDEV_FBSD_H_
 #define LIBUDEV_FBSD_H_
 
-#include <sys/stat.h>
 #include <sys/types.h>
-
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <fcntl.h>
-#include <unistd.h>
 
 struct udev;
 struct udev_device;
@@ -59,8 +51,8 @@ int udev_enumerate_add_match_property(struct udev_enumerate *udev_enumerate,
 void udev_enumerate_unref(struct udev_enumerate *udev_enumerate);
 
 #define udev_list_entry_foreach(list_entry, first_entry)                      \
-	for (list_entry = first_entry; list_entry;                            \
-	     list_entry = udev_list_entry_get_next(list_entry))
+	for ((list_entry) = first_entry; (list_entry);                        \
+	     (list_entry) = udev_list_entry_get_next((list_entry)))
 char const *udev_list_entry_get_name(struct udev_list_entry *list_entry);
 char const *udev_list_entry_get_value(struct udev_list_entry *list_entry);
 struct udev_list_entry *udev_list_entry_get_next(

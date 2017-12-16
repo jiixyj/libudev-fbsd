@@ -2,12 +2,14 @@
 
 #include "libudev.h"
 
-#include <sys/param.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 
 #include <errno.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <poll.h>
@@ -17,6 +19,7 @@
 #include <unistd.h>
 
 #include <libevdev/libevdev.h>
+/* IWYU pragma: no_include <dev/evdev/input-event-codes.h> */
 
 #if 0
 #define LOGGING_ENABLED

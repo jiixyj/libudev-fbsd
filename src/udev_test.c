@@ -11,7 +11,7 @@
  resource. It can be used for anyone for
  any reason, including embedding into
  a commercial product.
- 
+
  The document describing this file, and
  updated versions can be found at:
     http://www.signal11.us/oss/udev/
@@ -20,8 +20,10 @@
  Signal 11 Software
  2010-05-22 - Initial Revision
  2010-05-27 - Monitoring initializaion
-              moved to before enumeration.
+	      moved to before enumeration.
 *******************************************/
+#include <sys/select.h>
+#include <sys/time.h>
 
 #include <locale.h>
 #include <stdio.h>
@@ -165,4 +167,3 @@ main(void)
 
 	return 0;
 }
-
